@@ -1,0 +1,60 @@
+---
+version: '3.4'
+services:
+  teku:
+    environment:
+      - "JAVA_OPTS=-Xmx4g"
+    image: consensys/teku:22.1.1
+    command: ["--network=prater", 
+              "--data-base-path=/opt/teku/data",
+              "--eth1-endpoint=ETH1_RPC",
+              "--validators-external-signer-url=http://web3signer:9003",
+              "--validators-external-signer-public-keys=MY_PUBKEYS_COMMA_SEPARATED",
+              "--p2p-port=9000",
+              "--rest-api-enabled=true",
+              "--rest-api-docs-enabled=true",
+              "--initial-state=INFURA_PRATER_URL/eth/v1/debug/beacon/states/finalized"]
+    volumes:
+      - "teku-prater-data:/opt/teku/data"
+    user: root
+    ports:
+      - "9000:9000"
+      - "5051:5051"
+    restart: unless-stopped
+
+  postgres:
+    build:
+      context: postgres
+    image: postgres:mgarciate
+    environment:
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=web3signer
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+  web3signer:
+    build:
+      context: web3signer
+    image: web3signer:mgarciate
+    command: ["--key-store-path=/keyfiles",
+            "--http-listen-port=9003",
+            "--http-listen-host=0.0.0.0",
+            "--http-host-allowlist=*",
+            "eth2",
+            "--network=prater",
+            "--slashing-protection-db-url=jdbc:postgresql://postgres:5432/web3signer",
+            "--slashing-protection-db-username=postgres",
+            "--slashing-protection-db-password=password",
+            "--key-manager-api-enabled=true"]
+    volumes:
+      - $PWD/keyfiles:/keyfiles
+    ports:
+      - "9003:9000"
+    restart: unless-stopped
+
+volumes:
+  teku-prater-data: {}
+  web3signer: {}
+  postgres: {}
